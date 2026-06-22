@@ -1,25 +1,25 @@
 name: tounum
 
 services:
-  # ── Réseau privé Tailscale (sidecar) ──────────────────────────────────────
-  tailscale:
-    image: tailscale/tailscale:latest
-    container_name: tounum_ts
-    hostname: ${TS_HOSTNAME:-tounum}
-    restart: unless-stopped
-    cap_add:
-      - NET_ADMIN
-    devices:
-      - /dev/net/tun:/dev/net/tun
-    environment:
-      TS_AUTHKEY: ${TS_AUTHKEY:-}
-      TS_HOSTNAME: ${TS_HOSTNAME:-tounum}
-      TS_STATE_DIR: /var/lib/tailscale
-      TS_EXTRA_ARGS: --accept-dns=false
-    volumes:
-      - ts_state:/var/lib/tailscale
+  # Réseau privé Tailscale (sidecar)
+  # tailscale:
+  #   image: tailscale/tailscale:latest
+  #   container_name: tounum_ts
+  #   hostname: ${TS_HOSTNAME:-tounum}
+  #   restart: unless-stopped
+  #   cap_add:
+  #     - NET_ADMIN
+  #   devices:
+  #     - /dev/net/tun:/dev/net/tun
+  #   environment:
+  #     TS_AUTHKEY: ${TS_AUTHKEY:-}
+  #     TS_HOSTNAME: ${TS_HOSTNAME:-tounum}
+  #     TS_STATE_DIR: /var/lib/tailscale
+  #     TS_EXTRA_ARGS: --accept-dns=false
+  #   volumes:
+  #     - ts_state:/var/lib/tailscale
 
-  # ── Application (FastAPI + modèles GPU) ───────────────────────────────────
+  # Application (FastAPI + modèles GPU)
   app:
     build: .
     image: tounum-app:compose
@@ -57,7 +57,7 @@ services:
       retries: 5
       start_period: 150s
 
-  # ── Outils hors-service : entraînement / diagnostics (profil "tools") ─────
+  # Outils hors-service : entraînement / diagnostics (profil "tools")
   # Lancer à la demande :  docker compose --profile tools run --rm trainer
   trainer:
     build: .
@@ -79,7 +79,6 @@ services:
     command: ["python", "tools/train_captioning.py"]
 
 volumes:
-  # Réutilise l'état Tailscale déjà authentifié (même nœud, même IP).
   ts_state:
     external: true
     name: tounum_ts_state

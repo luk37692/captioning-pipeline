@@ -1,14 +1,3 @@
-"""Captioning v2 — ConvNeXt-Tiny (encodeur gelé) + décodeur Transformer.
-
-Modèle moderne du Livrable 3 (notebook `Livrable_3_Captioning_ConvNeXt_Transformer`).
-Comme pour le captioner GRU, le tokenizer n'est pas sauvegardé : on le reconstruit à
-l'identique de l'entraînement (mêmes graines, COCO entier, TOP_K=12000) — la taille du
-vocabulaire fixe les dimensions des couches `embedding`/`out`, donc la compatibilité avec
-les poids (`best.weights.h5`).
-
-Interface identique à `captioning.Captioner` : `.caption(img01, beam_width=None)` où
-`img01` est une image HxWx3 float dans [0, 1] (éventuellement débruitée).
-"""
 import os, re, json, collections, random
 import numpy as np
 import tensorflow as tf
@@ -17,10 +6,6 @@ from tensorflow.keras import layers
 
 import config
 
-
-# ─────────────────────────────────────────────────────────────────────────────
-# 1. Tokenizer (reconstruit, déterministe — COCO entier, TOP_K=12000)
-# ─────────────────────────────────────────────────────────────────────────────
 def _clean_caption(text):
     text = text.lower().strip()
     text = re.sub(r"[^a-z0-9 ]+", " ", text)
@@ -29,10 +14,11 @@ def _clean_caption(text):
 
 
 def build_tokenizer(use_saved=True):
-    """Renvoie (word_index, index_word, vocab_size, max_length).
+    """
+    Returns (word_index, index_word, vocab_size, max_length).
 
-    Recharge le tokenizer sauvegardé s'il existe, sinon le reconstruit à l'identique
-    de l'entraînement v2 (graine 42 + COCO entier + TOP_K=12000, max_length plafonné).
+    Reloads the saved tokenizer if it exists, otherwise rebuilds it identically to v2 training
+    (seed 42 + full COCO + TOP_K=12000, max_length capped at config.CAP_MAX_LEN).
     """
     if use_saved and os.path.exists(config.CAP_TOKENIZER_JSON):
         with open(config.CAP_TOKENIZER_JSON) as f:
@@ -71,10 +57,6 @@ def save_tokenizer(word_index, max_length, path=None):
     with open(path, "w") as f:
         json.dump({"word_index": word_index, "max_length": int(max_length)}, f)
 
-
-# ─────────────────────────────────────────────────────────────────────────────
-# 2. Architecture (IDENTIQUE au notebook v2 — requis pour load_weights)
-# ─────────────────────────────────────────────────────────────────────────────
 class PositionalEmbedding(layers.Layer):
     def __init__(self, vocab_size, d_model, max_len, **kw):
         super().__init__(**kw)
@@ -132,10 +114,6 @@ class CaptioningTransformer(keras.Model):
         logits = self.out(x)
         return (logits, last_attn) if return_attn else logits
 
-
-# ─────────────────────────────────────────────────────────────────────────────
-# 3. Captioner : ConvNeXt + Transformer + poids + beam search
-# ─────────────────────────────────────────────────────────────────────────────
 class TransformerCaptioner:
     def __init__(self):
         self.word_index, self.index_word, self.vocab_size, self.max_length = build_tokenizer()

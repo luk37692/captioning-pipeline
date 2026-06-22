@@ -1,8 +1,8 @@
-# ── Secrets / config locale ──────────────────────────────────────────────
+# Secrets / config locale
 .env
 *.local.env
 
-# ── Python ───────────────────────────────────────────────────────────────
+# Python
 __pycache__/
 *.py[cod]
 *.egg-info/
@@ -11,11 +11,11 @@ venv/
 .mypy_cache/
 .pytest_cache/
 
-# ── Runtime / sorties ────────────────────────────────────────────────────
+# Runtime / sorties
 runtime/
 *.log
 
-# ── Données & modèles : JAMAIS dans le repo (référencés via DATASET_DIR) ───
+# Données & modèles : JAMAIS dans le repo (référencés via DATASET_DIR)
 Dataset/
 data/
 *.keras
@@ -28,14 +28,14 @@ checkpoints*/
 features/
 coco/
 
-# ── Caches ────────────────────────────────────────────────────────────────
+# Caches
 .cache/
 .keras/
 
-# ── Notebooks ───────────────────────────────────────────────────────────────
+# Notebooks
 .ipynb_checkpoints/
 
-# ── OS / éditeurs ────────────────────────────────────────────────────────────
+# OS / éditeurs
 .DS_Store
 Thumbs.db
 .idea/

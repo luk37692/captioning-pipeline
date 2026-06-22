@@ -1,11 +1,3 @@
-"""Captioning : reconstruction du tokenizer + restauration de ckpt-4 + beam search.
-
-Le tokenizer N'EST PAS sauvegardé sur disque. On le reconstruit à l'identique en
-rejouant exactement la tokenisation de l'entraînement (mêmes graines, même
-sous-ensemble COCO, même TOP_K). C'est indispensable : la taille du vocabulaire
-détermine les formes des couches `embedding`/`fc2` du décodeur, donc la
-compatibilité avec le checkpoint.
-"""
 import os, re, json, collections, random
 import numpy as np
 import tensorflow as tf
@@ -13,10 +5,6 @@ from tensorflow import keras
 
 import config
 
-
-# ─────────────────────────────────────────────────────────────────────────────
-# 1. Tokenizer (reconstruit, déterministe)
-# ─────────────────────────────────────────────────────────────────────────────
 def _clean_caption(text):
     text = text.lower().strip()
     text = re.sub(r"[^a-z0-9 ]+", " ", text)
@@ -52,7 +40,6 @@ def build_tokenizer(use_saved=True):
         path = os.path.join(config.IMAGES_DIR, config.IMG_TMPL % val["image_id"])
         image_path_to_caption[path].append(_clean_caption(val["caption"]))
 
-    # Même séquence d'aléa qu'à l'entraînement : graine 42 fraîche avant le shuffle.
     keras.utils.set_random_seed(config.SEED)
     np.random.seed(config.SEED)
     random.seed(config.SEED)
@@ -71,10 +58,6 @@ def build_tokenizer(use_saved=True):
     max_length = max(len(c.split()) for c in train_captions)
     return word_index, index_word, len(vocab), max_length
 
-
-# ─────────────────────────────────────────────────────────────────────────────
-# 2. Architecture (identique au notebook Livrable 3)
-# ─────────────────────────────────────────────────────────────────────────────
 class CNN_Encoder(keras.Model):
     def __init__(self, embedding_dim):
         super().__init__()
@@ -105,7 +88,6 @@ class RNN_Decoder(keras.Model):
         super().__init__()
         self.units = units
         self.embedding = keras.layers.Embedding(vocab_size, embedding_dim)
-        # reset_after=False : indispensable sur ROCm (cf. notebook Livrable 3).
         self.gru = keras.layers.GRU(units, return_sequences=True, return_state=True,
                                     recurrent_initializer="glorot_uniform",
                                     reset_after=False)
@@ -126,10 +108,6 @@ class RNN_Decoder(keras.Model):
     def reset_state(self, batch_size):
         return tf.zeros((batch_size, self.units))
 
-
-# ─────────────────────────────────────────────────────────────────────────────
-# 3. Captioner : assemble tokenizer + modèles + checkpoint + génération
-# ─────────────────────────────────────────────────────────────────────────────
 class Captioner:
     def __init__(self):
         self.word_index, self.index_word, self.vocab_size, self.max_length = build_tokenizer()
@@ -137,17 +115,11 @@ class Captioner:
         self.encoder = CNN_Encoder(config.EMBEDDING_DIM)
         self.decoder = RNN_Decoder(config.EMBEDDING_DIM, config.UNITS, self.vocab_size)
 
-        # On matérialise les variables AVANT de restaurer : la restauration différée
-        # rate l'encodeur de façon silencieuse (cf. diagnostics). Construire d'abord
-        # puis restaurer garantit l'assignation des deux sous-modèles.
         self._build_variables()
 
-        # InceptionV3 sans tête -> extracteur de features (8x8x2048 reshape 64x2048).
         base = keras.applications.InceptionV3(include_top=False, weights="imagenet")
         self.feature_extractor = keras.Model(base.input, base.layers[-1].output)
 
-        # Checkpoint d'inférence : encodeur + décodeur uniquement (pas l'optimiseur),
-        # ce qui permet d'exiger une restauration COMPLETE de ces deux objets.
         ckpt = tf.train.Checkpoint(encoder=self.encoder, decoder=self.decoder)
         manager = tf.train.CheckpointManager(ckpt, config.CKPT_DIR, max_to_keep=3)
         if not manager.latest_checkpoint:

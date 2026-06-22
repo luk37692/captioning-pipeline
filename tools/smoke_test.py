@@ -43,7 +43,7 @@ def main():
     img_path = os.path.join(tmp, "synth.png")
     _synth_image(img_path)
 
-    # ── Étage 1 — cascade de classification ─────────────────────────────────────
+    # Étage 1 — cascade de classification
     try:
         clf = models.get_classifier()
         preds = clf.classify([img_path])
@@ -53,7 +53,7 @@ def main():
     except Exception as e:
         failures.append("classifier"); print(f"FAIL  classifier  -> {e}")
 
-    # ── Étage 2 — débruiteur ────────────────────────────────────────────────────
+    # Étage 2 — débruiteur
     try:
         denoiser = models.get_denoiser()
         img01 = pipeline.read_rgb01(img_path)
@@ -63,7 +63,7 @@ def main():
     except Exception as e:
         failures.append("denoiser"); print(f"FAIL  denoiser    -> {e}")
 
-    # ── Étage 3 — captioner par défaut (config.CAPTIONER_KIND) ──────────────────
+    # Étage 3 — captioner par défaut (config.CAPTIONER_KIND)
     try:
         captioner = models.get_captioner()
         caption = captioner.caption(pipeline.read_rgb01(img_path))

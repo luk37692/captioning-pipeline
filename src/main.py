@@ -28,13 +28,12 @@ os.makedirs(config.SESSIONS_DIR, exist_ok=True)
 
 app = FastAPI(title="TouNum — Pipeline photo / débruitage / captioning")
 
-# ── Authentification basique (active uniquement si APP_PASSWORD est défini) ──────
+# Basic authentication (active only if APP_PASSWORD is set)
 APP_USER = os.environ.get("APP_USER", "tounum")
 APP_PASSWORD = os.environ.get("APP_PASSWORD", "")
 
 @app.middleware("http")
 async def basic_auth(request: Request, call_next):
-    # /api/health reste public pour les sondes (healthcheck Docker, supervision).
     if APP_PASSWORD and request.url.path != "/api/health":
         hdr = request.headers.get("authorization", "")
         ok = False
@@ -51,14 +50,13 @@ async def basic_auth(request: Request, call_next):
 app.mount("/files", StaticFiles(directory=config.SESSIONS_DIR), name="files")
 app.mount("/static", StaticFiles(directory=os.path.join(HERE, "static")), name="static")
 
-# État en mémoire (démo mono-utilisateur).
 SESSIONS = {}
 
 IMG_EXTS = (".jpg", ".jpeg", ".png", ".bmp", ".webp")
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Schémas d'API
+# API Schemas
 # ─────────────────────────────────────────────────────────────────────────────
 class ReviewDecision(BaseModel):
     id: str
@@ -75,11 +73,6 @@ class CaptionBody(BaseModel):
 
 
 def _safe(x, ndigits=3):
-    """Float compatible JSON : NaN/Inf -> 0.0 (sinon json.dumps lève une erreur).
-
-    Un NaN ici trahit une sortie modèle instable (souvent numérique GPU/ROCm) ;
-    on l'expose comme 0.0 plutôt que de planter toute la requête en 500.
-    """
     try:
         x = float(x)
     except (TypeError, ValueError):
@@ -88,7 +81,6 @@ def _safe(x, ndigits=3):
 
 
 def _public_item(it):
-    """Vue exposée au front (sans le chemin disque)."""
     return {
         "id": it["id"],
         "filename": it["filename"],
@@ -112,9 +104,7 @@ def _effective_is_photo(it):
     return it["is_photo"] if it["confirmed_is_photo"] is None else it["confirmed_is_photo"]
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Page
-# ─────────────────────────────────────────────────────────────────────────────
+
 @app.get("/")
 def index():
     return FileResponse(os.path.join(HERE, "templates", "index.html"))
@@ -140,20 +130,18 @@ def classifiers():
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Étape 1 — Upload + (débruitage en amont, PAR IMAGE) + tri par la cascade
-# Ordre logique : on débruite AVANT de classer, car les classifieurs sont
-# entraînés sur des images propres. Le débruitage est choisi image par image
-# (le débruiteur est lossy/128px : ne l'appliquer qu'aux images réellement bruitées).
-# `denoise_flags` = liste "0"/"1" alignée sur l'ordre des fichiers envoyés.
-# ─────────────────────────────────────────────────────────────────────────────
+# Step 1 : Upload + (denoise per image) + cascade classification. 
+# Logical order: denoise BEFORE classifying, since classifiers are trained on clean images. 
+# Denoising is lossy/128px: only apply to actually noisy images. 
+# `denoise_flags` = "0"/"1" list aligned with the order of sent files.
 @app.post("/api/analyze")
 async def analyze(
     files: List[UploadFile] = File(...),
     mode: str = Form("strict"),
-    denoise_flags: str = Form(""),             # ex. "0,1,1,0" — par image, ordre des fichiers
+    denoise_flags: str = Form(""),             # ex. "0,1,1,0"
     passes: int = Form(1),
-    classifier: Optional[str] = Form(None),    # cf. /api/classifiers (une seule cascade)
-    captioner: Optional[str] = Form(None),     # cf. /api/captioners (mémorisé pour l'étape légendes)
+    classifier: Optional[str] = Form(None),    
+    captioner: Optional[str] = Form(None),     
     mc_review_thresh: float = Form(config.MC_REVIEW_THRESH),
     bin_review_band: float = Form(config.BIN_REVIEW_BAND),
     bin_threshold: float = Form(config.BIN_THRESHOLD),
@@ -185,8 +173,6 @@ async def analyze(
     if not saved:
         raise HTTPException(400, "Aucune image valide (jpg/png/bmp/webp) reçue.")
 
-    # Débruitage EN AMONT (par image) : produit l'image effective (proc) servant à
-    # classer PUIS à légender. Sans débruitage, l'image effective == l'originale.
     items = {}
     proc_paths = []
     for safe, dest, orig, want_denoise in saved:
@@ -211,7 +197,6 @@ async def analyze(
             "denoise": did_denoise, "caption": None,
         }
 
-    # Classification sur l'image effective (débruitée si demandé).
     preds = clf.classify(proc_paths, mc_review_thresh=mc_review_thresh,
                          bin_review_band=bin_review_band, bin_threshold=bin_threshold)
     for it, pr in zip(items.values(), preds):
@@ -235,8 +220,7 @@ async def analyze(
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Étape 1bis — Revue humaine (correction des classes)
-# ─────────────────────────────────────────────────────────────────────────────
+# Step 1.1 — Human Review 
 @app.post("/api/review")
 def review(body: ReviewBody):
     sess = SESSIONS.get(body.sid)
@@ -250,15 +234,14 @@ def review(body: ReviewBody):
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Étape 3 — Légendes (sur les photos retenues ; image déjà débruitée en amont)
-# ─────────────────────────────────────────────────────────────────────────────
+# Step 3 — Captions (on the selected photos ; image already denoised upstream)
 @app.post("/api/caption")
 def caption(body: CaptionBody):
     sess = SESSIONS.get(body.sid)
     if not sess:
         raise HTTPException(404, "Session inconnue.")
 
-    # En mode strict, toute image à revoir doit être tranchée avant de continuer.
+    # In strict mode, any image that needs review must be resolved before proceeding.
     if sess["mode"] == "strict":
         unresolved = [it["filename"] for it in sess["items"].values()
                       if it["needs_review"] and it["confirmed_is_photo"] is None]
@@ -270,10 +253,8 @@ def caption(body: CaptionBody):
     except Exception as e:
         raise HTTPException(500, f"Chargement du captioner impossible : {e}")
 
-    # On légende TOUTES les images (catégorie + légende), pas seulement les photos.
     results = []
     for it in sess["items"].values():
-        # L'image effective (proc_path) est déjà débruitée si l'option était active.
         img01 = pipeline.read_rgb01(it["proc_path"])
         it["caption"] = captioner.caption(img01)
         results.append(_public_item(it))
@@ -282,8 +263,8 @@ def caption(body: CaptionBody):
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Aperçu débruitage (sans état) — débruite une image envoyée et renvoie le PNG.
-# Sert à l'aperçu live « Originale vs Débruitée » dans l'écran d'options.
+# Step 4 — Denoise Preview (stateless) — denoises an uploaded image and returns the PNG.
+# Used for the live preview « Original vs Denoised » in the options screen.
 # ─────────────────────────────────────────────────────────────────────────────
 @app.post("/api/denoise-preview")
 async def denoise_preview(file: UploadFile = File(...), passes: int = Form(1)):

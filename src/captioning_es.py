@@ -1,14 +1,3 @@
-"""Captioning « es » — ConvNeXt-Base (encodeur gelé) + décodeur Transformer 6 blocs.
-
-Modèle du Livrable 3 (notebook `Livrable_3_Captioning_es_ConvNeXtBase_Transformer`).
-Contrairement au captioner `transformer`, le tokenizer EST sauvegardé (Keras Tokenizer
-picklé), donc aucune reconstruction du vocabulaire. L'architecture ci-dessous est
-IDENTIQUE au notebook (encodage positionnel sinusoïdal, FFN relu) — requis pour
-`load_weights`.
-
-Interface identique aux autres captioners : `.caption(img01, beam_width=None)` où
-`img01` est une image HxWx3 float dans [0, 1].
-"""
 import os, pickle
 import numpy as np
 import tensorflow as tf
@@ -16,10 +5,6 @@ from tensorflow import keras
 
 import config
 
-
-# ─────────────────────────────────────────────────────────────────────────────
-# 1. Architecture (IDENTIQUE au notebook es — requis pour load_weights)
-# ─────────────────────────────────────────────────────────────────────────────
 def positional_encoding(length, depth):
     depth = depth / 2
     positions = np.arange(length)[:, np.newaxis]
@@ -76,10 +61,6 @@ class TransformerCaptioner(keras.Model):
             x = layer(x, img, training=training)
         return self.out(x)
 
-
-# ─────────────────────────────────────────────────────────────────────────────
-# 2. Captioner : ConvNeXt-Base + Transformer + poids + beam search
-# ─────────────────────────────────────────────────────────────────────────────
 class EsCaptioner:
     def __init__(self):
         # Tokenizer Keras picklé à l'entraînement (word_index / index_word).
@@ -94,15 +75,14 @@ class EsCaptioner:
         self.end_id   = self.word_index["<end>"]
         self.unk_id   = self.word_index.get("<unk>")
 
-        # Encodeur visuel gelé : ConvNeXt-Base sans tête -> 7x7x1024 -> 49x1024.
+        # Frozen visual encoder: ConvNeXt-Base without top -> 7x7x1024 -> 49x1024.
         base = keras.applications.ConvNeXtBase(include_top=False, weights="imagenet")
         self.feature_extractor = keras.Model(base.input, base.layers[-1].output)
 
-        # Décodeur Transformer + restauration des poids.
+        # Transformer decoder + load weights.
         self.model = TransformerCaptioner(
             config.ES_VOCAB_SIZE, self.max_length, config.ES_D_MODEL,
             config.ES_NUM_HEADS, config.ES_DFF, config.ES_NUM_LAYERS, config.ES_DROPOUT)
-        # Construire les variables (1 passe à blanc) AVANT load_weights.
         self.model(tf.zeros((1, config.ES_FEAT_LEN, config.ES_FEAT_DIM)),
                    tf.zeros((1, 1), tf.int32), training=False)
         if not os.path.exists(config.ES_WEIGHTS):
@@ -129,7 +109,7 @@ class EsCaptioner:
         return banned
 
     def caption(self, img01, beam_width=None, no_repeat_ngram_size=3):
-        """Légende une image HxWx3 float [0,1] (beam search + blocage de n-grammes)."""
+        """Caption an image HxWx3 float [0,1] (beam search + no-repeat n-grams)."""
         beam_width = beam_width or config.MAX_CAPTION_BEAM
         features = self._features(img01)
         beams = [(0.0, [self.start_id], False)]

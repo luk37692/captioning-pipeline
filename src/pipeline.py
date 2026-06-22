@@ -1,11 +1,3 @@
-"""Pipeline TouNum : cascade de classification + débruitage.
-
-La cascade reprend exactement la logique validée dans prediction_pipeline.ipynb :
-le multiclasse 5 classes décide, et lorsqu'il prédit Photo ou Painting (la paire
-confondue), le binaire tranche via son score sigmoïde. La normalisation des
-pixels est auto-détectée comme dans le notebook (÷255 seulement si le modèle n'a
-pas de couche Rescaling/Normalization interne).
-"""
 import numpy as np
 import tensorflow as tf
 from tensorflow import keras
@@ -48,7 +40,7 @@ class CascadeClassifier:
         self.multi = multi_model
         self.bin_size = _model_size(binary_model, 299)
         self.multi_size = _model_size(multi_model, 299)
-        self.bin_norm = not _has_internal_rescaling(binary_model)   # True => on divise par 255
+        self.bin_norm = not _has_internal_rescaling(binary_model)   # True => divide by 255
         self.multi_norm = not _has_internal_rescaling(multi_model)
         self.order = config.MULTI_CLASS_ORDER
         self.photo_idx = self.order.index(config.PHOTO_CLASS)
@@ -106,13 +98,6 @@ class Denoiser:
         self.size = _model_size(model, config.DENOISER_SIZE)
 
     def denoise01(self, img01):
-        """Débruite une image HxWx3 [0,1] ; renvoie une image [0,1] à la taille D'ORIGINE.
-
-        Le modèle ne voit que `self.size` (ex. 128x128), mais on redimensionne la
-        sortie aux dimensions d'origine pour préserver le ratio (sinon l'image est
-        écrasée en carré). La finesse au-delà de `self.size` est perdue (limite du
-        modèle), mais le cadrage est conservé.
-        """
         x = tf.convert_to_tensor(img01, tf.float32)
         h, w = x.shape[0], x.shape[1]
         resized = tf.image.resize(x, self.size)

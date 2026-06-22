@@ -1,20 +1,3 @@
-"""Captioning v2+ — EfficientNetB0 (fine-tuné) + décodeur Transformer 4 blocs.
-
-Modèle COURANT du Livrable 3 (notebook `Livrable3_Captioning_v2plus`), captioner par
-DÉFAUT (`config.CAPTIONER_KIND == "v2plus"`). Tout est EMBARQUÉ dans `assets/captioning/` :
-tokenizer Keras picklé + poids ENCODEUR et DÉCODEUR séparés. L'encodeur EfficientNetB0
-est fine-tuné (dégelé à l'entraînement), donc ses poids sont restaurés depuis
-`best_encoder.weights.h5` au lieu des poids ImageNet.
-
-Interface identique aux autres captioners : `.caption(img01, beam_width=None)` où
-`img01` est une image HxWx3 float dans [0, 1] (éventuellement débruitée).
-
-⚠️ Fichier reconstruit après corruption disque : l'architecture ci-dessous DOIT
-correspondre exactement au notebook v2+ pour que `load_weights` réussisse. Calquée sur
-`captioning_es.py` (encodage positionnel sinusoïdal, FFN relu) avec les hyperparamètres
-`V2P_*` de `config.py`. Si `load_weights` lève une erreur de forme, c'est que l'archi
-reconstruite diverge du checkpoint embarqué.
-"""
 import os, pickle
 import numpy as np
 import tensorflow as tf
@@ -22,10 +5,6 @@ from tensorflow import keras
 
 import config
 
-
-# ─────────────────────────────────────────────────────────────────────────────
-# 1. Architecture (calquée sur le notebook v2+ — requise pour load_weights)
-# ─────────────────────────────────────────────────────────────────────────────
 def positional_encoding(length, depth):
     depth = depth / 2
     positions = np.arange(length)[:, np.newaxis]
@@ -81,10 +60,6 @@ class TransformerDecoder(keras.Model):
             x = layer(x, img, training=training)
         return self.out(x)
 
-
-# ─────────────────────────────────────────────────────────────────────────────
-# 2. Captioner : EfficientNetB0 fine-tuné + Transformer + poids + beam search
-# ─────────────────────────────────────────────────────────────────────────────
 class V2PlusCaptioner:
     def __init__(self):
         # Tokenizer Keras picklé à l'entraînement (word_index / index_word).
