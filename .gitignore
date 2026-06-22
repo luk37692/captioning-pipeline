@@ -1,0 +1,42 @@
+# ── Secrets / config locale ──────────────────────────────────────────────
+.env
+*.local.env
+
+# ── Python ───────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.mypy_cache/
+.pytest_cache/
+
+# ── Runtime / sorties ────────────────────────────────────────────────────
+runtime/
+*.log
+
+# ── Données & modèles : JAMAIS dans le repo (référencés via DATASET_DIR) ───
+Dataset/
+data/
+*.keras
+*.h5
+*.hdf5
+*.npy
+*.npz
+*.tfrecord
+checkpoints*/
+features/
+coco/
+
+# ── Caches ────────────────────────────────────────────────────────────────
+.cache/
+.keras/
+
+# ── Notebooks ───────────────────────────────────────────────────────────────
+.ipynb_checkpoints/
+
+# ── OS / éditeurs ────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/

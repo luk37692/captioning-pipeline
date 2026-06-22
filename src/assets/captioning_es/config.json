@@ -1,0 +1,17 @@
+{
+  "vocab_size": 10001,
+  "max_length": 22,
+  "d_model": 512,
+  "num_heads": 8,
+  "num_layers": 6,
+  "dff": 2048,
+  "dropout": 0.1,
+  "backbone": "convnext_base",
+  "feat_dtype": "float16",
+  "num_tokens": 49,
+  "feat_dim": 1024,
+  "cache_tag": "convnext_base.f16",
+  "val_bleu4": 0.3183,
+  "best_val_loss": 2.2426,
+  "stopped_epoch": 10
+}
