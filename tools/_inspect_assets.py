@@ -1,4 +1,4 @@
-"""Diagnostic jetable : intégrité de TOUS les assets modèles."""
+"""Throwaway diagnostic: integrity of ALL model assets."""
 import os, zipfile, pickle
 import h5py
 import config
@@ -49,6 +49,6 @@ ASSETS = {
 for label, path in ASSETS.items():
     print(f"{label:20s} {probe(path):40s} {os.path.basename(path)}")
 
-# checkpoint GRU (TF Checkpoint, pas un fichier unique)
+# GRU checkpoint (TF Checkpoint, not a single file)
 gru_index = os.path.join(config.CKPT_DIR, "ckpt-7.index")
 print(f"{'gru/ckpt-7.index':20s} {'OK' if os.path.exists(gru_index) else 'MISSING':40s} {gru_index}")

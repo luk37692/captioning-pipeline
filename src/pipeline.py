@@ -29,7 +29,7 @@ def _model_size(model, fallback):
 
 
 def read_rgb01(path):
-    """Lit une image (PNG/JPEG) en HxWx3 float [0,1] (numpy)."""
+    """Read an image (PNG/JPEG) as HxWx3 float [0,1] (numpy)."""
     img = tf.io.decode_image(tf.io.read_file(path), channels=3, expand_animations=False)
     return (tf.cast(img, tf.float32) / 255.0).numpy()
 

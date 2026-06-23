@@ -1,7 +1,7 @@
-"""Appli web TouNum : tri des photos (cascade + revue humaine) -> débruitage
-manuel -> captioning. FastAPI sert l'API JSON et une page unique en 3 étapes.
+"""TouNum web app: photo sorting (cascade + human review) -> manual denoising
+-> captioning. FastAPI serves the JSON API and a single 3-step page.
 
-Lancement (dans le conteneur) :
+Launch (inside the container):
     uvicorn main:app --host 0.0.0.0 --port 8000
 """
 import os
@@ -26,7 +26,7 @@ import models
 HERE = os.path.dirname(os.path.abspath(__file__))
 os.makedirs(config.SESSIONS_DIR, exist_ok=True)
 
-app = FastAPI(title="TouNum — Pipeline photo / débruitage / captioning")
+app = FastAPI(title="TouNum — photo / denoising / captioning pipeline")
 
 # Basic authentication (active only if APP_PASSWORD is set)
 APP_USER = os.environ.get("APP_USER", "tounum")
@@ -117,14 +117,14 @@ def health():
 
 @app.get("/api/captioners")
 def captioners():
-    """Modèles de captioning sélectionnables dans l'UI (+ défaut)."""
+    """Captioning models selectable in the UI (+ default)."""
     return {"default": config.CAPTIONER_KIND,
             "options": [{"kind": k, "label": v} for k, v in config.CAPTIONERS.items()]}
 
 
 @app.get("/api/classifiers")
 def classifiers():
-    """Modèles de classification sélectionnables dans l'UI (+ défaut)."""
+    """Classification models selectable in the UI (+ default)."""
     return {"default": config.CLASSIFIER_KIND,
             "options": [{"kind": k, "label": v} for k, v in config.CLASSIFIERS.items()]}
 
@@ -151,7 +151,7 @@ async def analyze(
         clf = models.get_classifier()
         denoiser = models.get_denoiser() if any(flags) else None
     except Exception as e:
-        raise HTTPException(500, f"Chargement des modèles impossible : {e}")
+        raise HTTPException(500, f"Failed to load models: {e}")
 
     passes = max(1, min(int(passes), config.DENOISE_MAX_PASSES))
     sid = uuid.uuid4().hex[:12]
@@ -171,7 +171,7 @@ async def analyze(
         saved.append((safe, dest, name, want_denoise))
 
     if not saved:
-        raise HTTPException(400, "Aucune image valide (jpg/png/bmp/webp) reçue.")
+        raise HTTPException(400, "No valid image (jpg/png/bmp/webp) received.")
 
     items = {}
     proc_paths = []
@@ -225,7 +225,7 @@ async def analyze(
 def review(body: ReviewBody):
     sess = SESSIONS.get(body.sid)
     if not sess:
-        raise HTTPException(404, "Session inconnue.")
+        raise HTTPException(404, "Unknown session.")
     for d in body.decisions:
         it = sess["items"].get(d.id)
         if it:
@@ -239,19 +239,19 @@ def review(body: ReviewBody):
 def caption(body: CaptionBody):
     sess = SESSIONS.get(body.sid)
     if not sess:
-        raise HTTPException(404, "Session inconnue.")
+        raise HTTPException(404, "Unknown session.")
 
     # In strict mode, any image that needs review must be resolved before proceeding.
     if sess["mode"] == "strict":
         unresolved = [it["filename"] for it in sess["items"].values()
                       if it["needs_review"] and it["confirmed_is_photo"] is None]
         if unresolved:
-            raise HTTPException(409, f"Revue requise (mode strict) : {', '.join(unresolved)}")
+            raise HTTPException(409, f"Review required (strict mode): {', '.join(unresolved)}")
 
     try:
         captioner = models.get_captioner(sess.get("captioner"))
     except Exception as e:
-        raise HTTPException(500, f"Chargement du captioner impossible : {e}")
+        raise HTTPException(500, f"Failed to load captioner: {e}")
 
     results = []
     for it in sess["items"].values():
@@ -264,14 +264,14 @@ def caption(body: CaptionBody):
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Step 4 — Denoise Preview (stateless) — denoises an uploaded image and returns the PNG.
-# Used for the live preview « Original vs Denoised » in the options screen.
+# Used for the live preview "Original vs Denoised" in the options screen.
 # ─────────────────────────────────────────────────────────────────────────────
 @app.post("/api/denoise-preview")
 async def denoise_preview(file: UploadFile = File(...), passes: int = Form(1)):
     try:
         denoiser = models.get_denoiser()
     except Exception as e:
-        raise HTTPException(500, f"Chargement du débruiteur impossible : {e}")
+        raise HTTPException(500, f"Failed to load denoiser: {e}")
     passes = max(1, min(int(passes), config.DENOISE_MAX_PASSES))
     data = await file.read()
     img = Image.open(io.BytesIO(data)).convert("RGB")

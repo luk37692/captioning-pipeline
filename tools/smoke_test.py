@@ -1,12 +1,12 @@
-"""Smoke test du cœur TouNum : charge les modèles embarqués et fait tourner la
-chaîne classification -> débruitage -> légende sur une image de synthèse.
+"""Smoke test of the TouNum core: loads the embedded models and runs the
+classification -> denoising -> caption chain on a synthetic image.
 
-But : valider rapidement (sans COCO ni montage externe) que les assets embarqués se
-chargent et que chaque étage produit une sortie. Lancement :
+Goal: quickly validate (no dataset, no external mount) that the embedded assets
+load and that each stage produces an output. Launch:
 
     docker compose --profile tools run --rm trainer python tools/smoke_test.py
 
-Sortie : une ligne PASS/FAIL par étage + code retour non nul si un étage casse.
+Output: one PASS/FAIL line per stage + non-zero exit code if a stage breaks.
 """
 import os
 import sys
@@ -15,7 +15,7 @@ import tempfile
 import numpy as np
 from PIL import Image
 
-# Les modules applicatifs vivent dans /app (conteneur) ou src/ (local).
+# The app modules live in /app (container) or src/ (local).
 HERE = os.path.dirname(os.path.abspath(__file__))
 for _cand in ("/app", os.path.join(os.path.dirname(HERE), "src")):
     if os.path.isdir(_cand) and _cand not in sys.path:
@@ -27,7 +27,7 @@ import models        # noqa: E402
 
 
 def _synth_image(path, size=256):
-    """Écrit une image RGB de synthèse (dégradé + bruit) sur disque."""
+    """Write a synthetic RGB image (gradient + noise) to disk."""
     rng = np.random.default_rng(config.SEED)
     grad = np.linspace(0, 255, size, dtype=np.float32)
     base = np.stack([np.tile(grad, (size, 1)),
@@ -43,7 +43,7 @@ def main():
     img_path = os.path.join(tmp, "synth.png")
     _synth_image(img_path)
 
-    # Étage 1 — cascade de classification
+    # Stage 1 — classification cascade
     try:
         clf = models.get_classifier()
         preds = clf.classify([img_path])
@@ -53,7 +53,7 @@ def main():
     except Exception as e:
         failures.append("classifier"); print(f"FAIL  classifier  -> {e}")
 
-    # Étage 2 — débruiteur
+    # Stage 2 — denoiser
     try:
         denoiser = models.get_denoiser()
         img01 = pipeline.read_rgb01(img_path)
@@ -63,7 +63,7 @@ def main():
     except Exception as e:
         failures.append("denoiser"); print(f"FAIL  denoiser    -> {e}")
 
-    # Étage 3 — captioner par défaut (config.CAPTIONER_KIND)
+    # Stage 3 — default captioner (config.CAPTIONER_KIND)
     try:
         captioner = models.get_captioner()
         caption = captioner.caption(pipeline.read_rgb01(img_path))
@@ -73,7 +73,7 @@ def main():
         failures.append(f"captioner[{config.CAPTIONER_KIND}]"); print(f"FAIL  captioner   -> {e}")
 
     if failures:
-        print(f"\nSMOKE TEST FAILED : {', '.join(failures)}")
+        print(f"\nSMOKE TEST FAILED: {', '.join(failures)}")
         return 1
     print("\nSMOKE TEST OK")
     return 0
