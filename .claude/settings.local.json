@@ -2,7 +2,14 @@
   "permissions": {
     "allow": [
       "Bash(python3 -m py_compile src/*.py)",
-      "Bash(node --check src/static/app.js)"
+      "Bash(node --check src/static/app.js)",
+      "Read(//home/maertn/Documents/archive/cp/Dataset/Livrable_3_Captioning/**)",
+      "Bash(docker version *)",
+      "Bash(docker compose *)",
+      "Bash(docker container *)",
+      "Bash(docker builder *)",
+      "Bash(docker system *)",
+      "Bash(grep -nE \"\\\\\\\\\\\\$\\\\{it\\\\.\\(filename|class|caption\\)\" static/app.js)"
     ]
   }
 }

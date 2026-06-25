@@ -1,0 +1,19 @@
+# Image de l'appli TouNum — variante NVIDIA/CUDA (équivalent de Dockerfile, base ROCm).
+# Build :  docker compose -f docker-compose.nvidia.yml up -d --build
+FROM tensorflow/tensorflow:latest-gpu
+
+RUN pip install --no-cache-dir \
+    fastapi \
+    "uvicorn[standard]" \
+    python-multipart \
+    pillow
+
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONPATH=/app
+WORKDIR /app
+
+COPY src/ /app/
+COPY tools/ /app/tools/
+
+EXPOSE 8000
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]

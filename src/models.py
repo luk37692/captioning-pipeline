@@ -31,15 +31,6 @@ def _build_captioner(kind):
     if kind == "v2plus":
         import captioning_v2plus
         return captioning_v2plus.V2PlusCaptioner()
-    if kind == "es":
-        import captioning_es
-        return captioning_es.EsCaptioner()
-    if kind == "transformer":
-        import captioning_transformer
-        return captioning_transformer.TransformerCaptioner()
-    if kind == "gru":
-        import captioning
-        return captioning.Captioner()
     raise RuntimeError(f"Unknown captioner: {kind!r} (expected: {', '.join(config.CAPTIONERS)})")
 
 def get_captioner(kind=None):

@@ -1,5 +1,6 @@
 # Image de l'appli TouNum : base TF/ROCm + dépendances web + code applicatif.
-FROM rocm/tensorflow:latest
+# Base = image ROCm/TF locale (évite de re-télécharger rocm/tensorflow ~30 Go).
+FROM tf-rocm-jupyter:latest
 
 RUN pip install --no-cache-dir \
     fastapi \

@@ -41,14 +41,6 @@ ASSETS = {
     "v2plus/enc": config.V2P_ENCODER_WEIGHTS,
     "v2plus/dec": config.V2P_DECODER_WEIGHTS,
     "v2plus/tok": config.V2P_TOKENIZER_PKL,
-    "es/weights": config.ES_WEIGHTS,
-    "es/tok": config.ES_TOKENIZER_PKL,
-    "convnext/weights": config.CONVNEXT_CKPT,
-    "convnext/tok": config.CAP_TOKENIZER_JSON,
 }
 for label, path in ASSETS.items():
     print(f"{label:20s} {probe(path):40s} {os.path.basename(path)}")
-
-# GRU checkpoint (TF Checkpoint, not a single file)
-gru_index = os.path.join(config.CKPT_DIR, "ckpt-7.index")
-print(f"{'gru/ckpt-7.index':20s} {'OK' if os.path.exists(gru_index) else 'MISSING':40s} {gru_index}")

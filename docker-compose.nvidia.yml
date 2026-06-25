@@ -1,0 +1,59 @@
+name: tounum
+
+# Variante NVIDIA/CUDA. Prérequis hôte : pilote NVIDIA + nvidia-container-toolkit.
+#   docker compose -f docker-compose.nvidia.yml up -d --build
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile.nvidia
+    image: tounum-app:nvidia
+    container_name: tounum_app
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      TOUNUM_CPU: ${TOUNUM_CPU:-0}          # 1 = force CPU (masque le GPU avant TF)
+      NVIDIA_VISIBLE_DEVICES: all
+      NVIDIA_DRIVER_CAPABILITIES: compute,utility
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    volumes:
+      - ./src:/app                          # code live (override le COPY de l'image)
+      - app_runtime:/app/runtime           # sessions, sorties débruitées
+      - keras_cache:/root/.keras           # backbones ImageNet (téléchargés une fois)
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/health', timeout=5)"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 150s
+
+  # Outils hors-service : diagnostics / smoke test (profil "tools")
+  trainer:
+    build:
+      context: .
+      dockerfile: Dockerfile.nvidia
+    image: tounum-app:nvidia
+    profiles: ["tools"]
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    volumes:
+      - ${DATASET_DIR}:/tf/notebooks
+      - app_runtime:/app/runtime
+      - keras_cache:/root/.keras
+    command: ["python", "tools/smoke_test.py"]
+
+volumes:
+  app_runtime:
+  keras_cache:
